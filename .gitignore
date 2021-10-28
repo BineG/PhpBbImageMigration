@@ -5,3 +5,4 @@
 /.vs
 /**/bin/
 /**/obj/
+/PhpBbImageMigration/app.secrets.json

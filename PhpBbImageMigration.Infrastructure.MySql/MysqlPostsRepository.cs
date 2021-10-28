@@ -28,6 +28,7 @@ namespace PhpBbImageMigration.Infrastructure.MySql
                 if (disposing)
                 {
                     // TODO: dispose managed state (managed objects)
+                    _context.Dispose();
                 }
 
                 // TODO: free unmanaged resources (unmanaged objects) and override finalizer
@@ -50,11 +51,18 @@ namespace PhpBbImageMigration.Infrastructure.MySql
             GC.SuppressFinalize(this);
         }
 
-        public async Task<List<Phpbb3Post>> GetPosts()
+        public async Task<List<Phpbb3Post>> GetPosts(string[] patterns, int take, int skip)
         {
             return await _context.Phpbb3Posts
                 .Where(p => p.PostText.Contains("shrani.si"))
+                .Skip(skip)
+                .Take(take)
                 .ToListAsync();
+        }
+
+        public async Task SaveChanges()
+        {
+            await _context.SaveChangesAsync();
         }
     }
 }

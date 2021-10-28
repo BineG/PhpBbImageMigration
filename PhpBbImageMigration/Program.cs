@@ -17,6 +17,7 @@ namespace PhpBbImageMigration
             var configuration = new ConfigurationBuilder()
                 //.SetBasePath(Directory.GetCurrentDirectory())
                 .AddJsonFile("appsettings.json", optional: false)
+                .AddJsonFile("app.secrets.json", optional: true)
                 .AddEnvironmentVariables()
                 .Build();
 
@@ -34,7 +35,7 @@ namespace PhpBbImageMigration
 
             var worker = serviceProvider.GetRequiredService<ImageMigrationWorker>();
 
-            worker.Start().Wait();
+            worker.Start(new string[] { "shrani.si" }).Wait();
 
             //using IHost host = CreateHostBuilder(args).Build();
 

@@ -9,6 +9,8 @@ namespace PhpBbImageMigration.Domain.Posts
 {
     public interface IPostsRepository : IDisposable
     {
-        Task<List<Phpbb3Post>> GetPosts();
+        Task<List<Phpbb3Post>> GetPosts(string[] patterns, int take, int skip);
+
+        Task SaveChanges();
     }
 }
