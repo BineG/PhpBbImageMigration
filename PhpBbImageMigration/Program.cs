@@ -2,10 +2,13 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using PhpBbImageMigration.Domain.ImagesHandling;
 using PhpBbImageMigration.Domain.Posts;
+using PhpBbImageMigration.Infrastructure.ImageUpload.Ftp;
 using PhpBbImageMigration.Infrastructure.MySql;
 using PhpBbImageMigration.Infrastructure.MySql.Context;
 using System;
+using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace PhpBbImageMigration
@@ -22,9 +25,16 @@ namespace PhpBbImageMigration
                 .Build();
 
             var serviceProvider = new ServiceCollection()
+                .AddHttpClient()
                 .AddScoped<IPostsRepository, MysqlPostsRepository>()
                 .AddScoped<ImageMigrationWorker>()
                 .AddSingleton<IConfiguration>(configuration)
+                .AddSingleton<IImageUploader, FtpImageUploader>((sp) =>
+                {
+                    var client = sp.GetRequiredService<HttpClient>();
+
+                    return new FtpImageUploader(client);
+                })
                 .AddDbContext<PhpbbContext>((sp, o) =>
                 {
                     var cfg = sp.GetRequiredService<IConfiguration>();

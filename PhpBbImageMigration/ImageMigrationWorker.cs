@@ -1,4 +1,5 @@
 ﻿using PhpBbImageMigration.Domain.DataEntities;
+using PhpBbImageMigration.Domain.ImagesHandling;
 using PhpBbImageMigration.Domain.Posts;
 using System.Collections.Generic;
 using System.IO;
@@ -13,10 +14,12 @@ namespace PhpBbImageMigration
         private const int Take = 200;
 
         private readonly IPostsRepository _postsRepository;
+        private readonly IImageUploader _imageUploader;
 
-        public ImageMigrationWorker(IPostsRepository postsRepository)
+        public ImageMigrationWorker(IPostsRepository postsRepository, IImageUploader imageUploader)
         {
             _postsRepository = postsRepository;
+            _imageUploader = imageUploader;
         }
 
         public async Task Start(string[] patterns)
@@ -37,7 +40,7 @@ namespace PhpBbImageMigration
 
                 var transformedPosts = posts
                     .AsParallel()
-                    .Select(item =>
+                    .Select(async item =>
                     {
                         var matches = regex.Matches(item.PostText)
                         // trim quotes
@@ -53,7 +56,8 @@ namespace PhpBbImageMigration
                         foreach (string match in matches)
                         {
                             // TODO save image and generate new path
-                            //item.PostText = item.PostText.Replace()
+                            string uploadedPath = await _imageUploader.SaveAndUpload(match);
+                            item.PostText = item.PostText.Replace(match, uploadedPath);
                         }
 
                         return item;

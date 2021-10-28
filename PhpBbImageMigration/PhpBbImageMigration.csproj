@@ -8,10 +8,12 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="5.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="5.0.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\PhpBbImageMigration.Domain\PhpBbImageMigration.Domain.csproj" />
+    <ProjectReference Include="..\PhpBbImageMigration.Infrastructure.ImageUpload.Ftp\PhpBbImageMigration.Infrastructure.ImageUpload.Ftp.csproj" />
     <ProjectReference Include="..\PhpBbImageMigration.Infrastructure.MySql\PhpBbImageMigration.Infrastructure.MySql.csproj" />
   </ItemGroup>
 
