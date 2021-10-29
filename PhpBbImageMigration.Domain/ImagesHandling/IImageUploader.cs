@@ -8,6 +8,6 @@ namespace PhpBbImageMigration.Domain.ImagesHandling
 {
     public interface IImageUploader : IDisposable
     {
-        Task<string> SaveAndUpload(string url);
+        Task<bool> SaveAndUpload(string url);
     }
 }

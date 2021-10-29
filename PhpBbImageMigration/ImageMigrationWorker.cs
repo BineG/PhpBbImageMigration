@@ -1,6 +1,9 @@
-﻿using PhpBbImageMigration.Domain.DataEntities;
+﻿using Microsoft.Extensions.DependencyInjection;
+using PhpBbImageMigration.Domain.App;
+using PhpBbImageMigration.Domain.DataEntities;
 using PhpBbImageMigration.Domain.ImagesHandling;
 using PhpBbImageMigration.Domain.Posts;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -13,12 +16,14 @@ namespace PhpBbImageMigration
     {
         private const int Take = 200;
 
-        private readonly IPostsRepository _postsRepository;
+        private readonly IServiceProvider _serviceProvider;
         private readonly IImageUploader _imageUploader;
+        private readonly AppConfiguration _appConfiguration;
 
-        public ImageMigrationWorker(IPostsRepository postsRepository, IImageUploader imageUploader)
+        public ImageMigrationWorker(IServiceProvider serviceProvider, IImageUploader imageUploader, AppConfiguration appConfiguration)
         {
-            _postsRepository = postsRepository;
+            _appConfiguration = appConfiguration;
+            _serviceProvider = serviceProvider;
             _imageUploader = imageUploader;
         }
 
@@ -36,38 +41,47 @@ namespace PhpBbImageMigration
             int page = 0;
             do
             {
-                posts = await _postsRepository.GetPosts(patterns, Take, page + Take);
+                var postsRepository = _serviceProvider.GetRequiredService<IPostsRepository>();
+                {
+                    posts = await postsRepository.GetPosts(patterns, Take, page + Take);
 
-                var transformedPosts = posts
-                    .AsParallel()
-                    .Select(async item =>
-                    {
-                        var matches = regex.Matches(item.PostText)
-                        // trim quotes
-                            .Select(x => x.Value.Trim('\"'))
-                            .Where(x =>
-                            {
-                                string extension = Path.GetExtension(x);
-
-                                return patterns.Any(p => x.Contains(p)) && (extension == ".jpg" || extension == ".jpeg" || extension == ".png");
-                            })
-                            .ToList();
-
-                        foreach (string match in matches)
+                    var transformedPosts = posts
+                        //.AsParallel()
+                        .Select(async item =>
                         {
-                            // TODO save image and generate new path
-                            string uploadedPath = await _imageUploader.SaveAndUpload(match);
-                            item.PostText = item.PostText.Replace(match, uploadedPath);
-                        }
+                            var matches = regex.Matches(item.PostText)
+                                // trim quotes
+                                .Select(x => x.Value.Trim('\"'))
+                                .Where(x =>
+                                {
+                                    string extension = Path.GetExtension(x);
 
-                        return item;
-                    })
-                    .ToList();
+                                    return patterns.Any(p => x.Contains(p)) && (extension == ".jpg" || extension == ".jpeg" || extension == ".png");
+                                })
+                                .ToList();
 
-                page++;
+                            foreach (string match in matches)
+                            {
+                            // save image and generate new path
+                            string file = Path.GetFileName(match);
+                                string httpImgUrl = new Uri(new Uri(_appConfiguration?.ImageUpload?.HttpRequestBasePath), file).AbsoluteUri;
+
+                                if (await _imageUploader.SaveAndUpload(match))
+                                {
+                                    item.PostText = item.PostText.Replace(match, httpImgUrl);
+                                }
+                                await Task.Delay(200);
+                            }
+
+                            return item;
+                        })
+                        .ToList();
+
+                    page++;
+
+                    //await postsRepository.SaveChanges();
+                }
             } while (posts.Any());
-
-            await _postsRepository.SaveChanges();
         }
     }
 }
