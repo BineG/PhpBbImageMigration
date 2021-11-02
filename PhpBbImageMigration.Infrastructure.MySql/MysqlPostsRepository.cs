@@ -51,13 +51,32 @@ namespace PhpBbImageMigration.Infrastructure.MySql
             GC.SuppressFinalize(this);
         }
 
-        public async Task<List<Phpbb3Post>> GetPosts(string[] patterns, int take, int skip)
+        public async Task<List<Phpbb3Post>> GetPosts(string[] patterns, int take, int? lastPostId)
         {
-            return await _context.Phpbb3Posts
-                .Where(p => p.PostText.Contains("shrani.si"))
-                .Skip(skip)
+            if (!patterns.Any())
+                return new List<Phpbb3Post>();
+
+            var query = _context.Phpbb3Posts
+                .OrderBy(p => p.PostId)
+                .AsQueryable();
+
+            var patternQuery = QueryByPattern(query, patterns.FirstOrDefault());
+
+            for (int i = 1; i < patterns.Length; i++)
+            {
+                patternQuery = patternQuery.Union(QueryByPattern(query, patterns.ElementAt(i)));
+            }
+
+            return await patternQuery
+                .Distinct()
+                .Where(p => !lastPostId.HasValue || p.PostId > lastPostId)
                 .Take(take)
                 .ToListAsync();
+        }
+
+        private IQueryable<Phpbb3Post> QueryByPattern(IQueryable<Phpbb3Post> posts, string pattern)
+        {
+            return posts.Where(p => p.PostText.Contains(pattern));
         }
 
         public async Task SaveChanges()

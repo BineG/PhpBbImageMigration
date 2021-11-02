@@ -29,6 +29,13 @@ namespace PhpBbImageMigration.Infrastructure.ImageUpload.Ftp
 
         public async Task<bool> SaveAndUpload(string imageUrl)
         {
+            string imgFile = Path.GetFileName(imageUrl);
+            string ftpImagePath = new Uri(new Uri(_config.Host), imgFile).AbsoluteUri;
+
+            if (await FileExists(ftpImagePath))
+                return true;
+
+
             byte[] img = null;
 
             try
@@ -46,12 +53,7 @@ namespace PhpBbImageMigration.Infrastructure.ImageUpload.Ftp
             await _lock.WaitAsync();
             try
             {
-                string imgFile = Path.GetFileName(imageUrl);
-                string ftpImagePath = new Uri(new Uri(_config.Host), imgFile).AbsoluteUri;
-
-                FtpWebRequest request = (FtpWebRequest)WebRequest.Create(ftpImagePath);
-                request.Method = WebRequestMethods.Ftp.UploadFile;
-                request.Credentials = new NetworkCredential(_config.Username, _config.Password);
+                FtpWebRequest request = CreateFtpRequest(ftpImagePath, WebRequestMethods.Ftp.UploadFile);
 
                 // Copy the contents of the file to the request stream.
 
@@ -76,6 +78,37 @@ namespace PhpBbImageMigration.Infrastructure.ImageUpload.Ftp
             {
                 _lock.Release();
             }
+        }
+
+        private async Task<bool> FileExists(string imageUrl)
+        {
+            FtpWebRequest request = CreateFtpRequest(imageUrl, WebRequestMethods.Ftp.GetFileSize);
+
+            try
+            {
+                using var response = await request.GetResponseAsync();
+
+                return true;
+            }
+            catch (WebException wex)
+            {
+                FtpWebResponse response = (FtpWebResponse)wex.Response;
+                if (response.StatusCode == FtpStatusCode.ActionNotTakenFileUnavailable)
+                {
+                    return false;
+                }
+
+                throw;
+            }
+        }
+
+        private FtpWebRequest CreateFtpRequest(string path, string method)
+        {
+            FtpWebRequest request = (FtpWebRequest)WebRequest.Create(path);
+            request.Method = method;
+            request.Credentials = new NetworkCredential(_config.Username, _config.Password);
+
+            return request;
         }
 
         protected virtual void Dispose(bool disposing)

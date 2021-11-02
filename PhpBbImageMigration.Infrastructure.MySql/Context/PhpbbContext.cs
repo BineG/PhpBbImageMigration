@@ -121,7 +121,8 @@ namespace PhpBbImageMigration.Infrastructure.MySql.Context
 
             modelBuilder.Entity<Phpbb3Post>(entity =>
             {
-                entity.HasNoKey();
+                //entity.HasNoKey();
+                entity.HasKey(x => x.PostId);
 
                 entity.ToTable("phpbb3_posts");
 

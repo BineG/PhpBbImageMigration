@@ -3,6 +3,7 @@ using PhpBbImageMigration.Domain.App;
 using PhpBbImageMigration.Domain.DataEntities;
 using PhpBbImageMigration.Domain.ImagesHandling;
 using PhpBbImageMigration.Domain.Posts;
+using PhpBbImageMigration.Infrastructure.MySql;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -29,59 +30,72 @@ namespace PhpBbImageMigration
 
         public async Task Start(string[] patterns)
         {
-            if (patterns == null || !patterns.Any())
+            try
             {
-                return;
-            }
-
-            var regex = new Regex("\"[^\"]*\"");
-
-            List<Phpbb3Post> posts = null;
-
-            int page = 0;
-            do
-            {
-                var postsRepository = _serviceProvider.GetRequiredService<IPostsRepository>();
+                if (patterns == null || !patterns.Any())
                 {
-                    posts = await postsRepository.GetPosts(patterns, Take, page + Take);
-
-                    var transformedPosts = posts
-                        //.AsParallel()
-                        .Select(async item =>
-                        {
-                            var matches = regex.Matches(item.PostText)
-                                // trim quotes
-                                .Select(x => x.Value.Trim('\"'))
-                                .Where(x =>
-                                {
-                                    string extension = Path.GetExtension(x);
-
-                                    return patterns.Any(p => x.Contains(p)) && (extension == ".jpg" || extension == ".jpeg" || extension == ".png");
-                                })
-                                .ToList();
-
-                            foreach (string match in matches)
-                            {
-                            // save image and generate new path
-                            string file = Path.GetFileName(match);
-                                string httpImgUrl = new Uri(new Uri(_appConfiguration?.ImageUpload?.HttpRequestBasePath), file).AbsoluteUri;
-
-                                if (await _imageUploader.SaveAndUpload(match))
-                                {
-                                    item.PostText = item.PostText.Replace(match, httpImgUrl);
-                                }
-                                await Task.Delay(200);
-                            }
-
-                            return item;
-                        })
-                        .ToList();
-
-                    page++;
-
-                    //await postsRepository.SaveChanges();
+                    return;
                 }
-            } while (posts.Any());
+
+                var regex = new Regex("\"[^\"]*\"");
+
+                List<Phpbb3Post> posts = null;
+
+                int page = 0;
+                int? lastPost = null;
+                do
+                {
+                    var postsRepository = _serviceProvider.GetRequiredService<IPostsRepository>();
+                    {
+                        posts = await postsRepository.GetPosts(patterns, Take, lastPost);
+
+                        List<Task<Phpbb3Post>> transformedPosts = posts
+                            //.AsParallel()
+                            .Select(async item =>
+                            {
+                                var matches = regex.Matches(item.PostText)
+                                    // trim quotes
+                                    .Select(x => x.Value.Trim('\"'))
+                                    .Where(x =>
+                                    {
+                                        string extension = Path.GetExtension(x);
+
+                                        return patterns.Any(p => x.Contains(p)) && (extension == ".jpg" || extension == ".jpeg" || extension == ".png");
+                                    })
+                                    .ToList();
+
+                                foreach (string match in matches)
+                                {
+                                    // save image and generate new path
+                                    string file = Path.GetFileName(match);
+                                    string httpImgUrl = new Uri(new Uri(_appConfiguration?.ImageUpload?.HttpRequestBasePath), file).AbsoluteUri;
+
+                                    if (await _imageUploader.SaveAndUpload(match))
+                                    {
+                                        item.PostText = item.PostText.Replace(match, httpImgUrl);
+                                    }
+                                    await Task.Delay(200);
+                                }
+
+                                return item;
+                            })
+                            .ToList();
+
+                        await Task.WhenAll(transformedPosts);
+
+                        lastPost = transformedPosts.LastOrDefault()?.Result.PostId;
+
+                        await postsRepository.SaveChanges();
+
+                        page++;
+                    }
+                } while (posts.Any());
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error {ex}");
+                throw;
+            }
         }
     }
 }
