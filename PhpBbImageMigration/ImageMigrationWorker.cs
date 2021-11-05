@@ -37,7 +37,8 @@ namespace PhpBbImageMigration
                     return;
                 }
 
-                var regex = new Regex("\"[^\"]*\"");
+                var regexQuotes = new Regex("\"[^\"]*\"");
+                var regexBrackets = new Regex("\\]\\S+\\[");
 
                 List<Phpbb3Post> posts = null;
 
@@ -48,12 +49,15 @@ namespace PhpBbImageMigration
                     var postsRepository = _serviceProvider.GetRequiredService<IPostsRepository>();
                     {
                         posts = await postsRepository.GetPosts(patterns, Take, lastPost);
+                        
+                        if (!posts.Any())
+                            break;
 
                         List<Task<Phpbb3Post>> transformedPosts = posts
                             //.AsParallel()
                             .Select(async item =>
                             {
-                                var matches = regex.Matches(item.PostText)
+                                var matches = regexQuotes.Matches(item.PostText)
                                     // trim quotes
                                     .Select(x => x.Value.Trim('\"'))
                                     .Where(x =>
@@ -64,6 +68,17 @@ namespace PhpBbImageMigration
                                     })
                                     .ToList();
 
+                                matches.AddRange(
+                                    regexBrackets.Matches(item.PostText)
+                                        .Select(x => System.Web.HttpUtility.HtmlDecode(x.Value.Trim(']', '[')))
+                                        .Where(x =>
+                                        {
+                                            string extension = Path.GetExtension(x);
+
+                                            return patterns.Any(p => x.Contains(p)) && (extension == ".jpg" || extension == ".jpeg" || extension == ".png");
+                                        })
+                                );
+
                                 foreach (string match in matches)
                                 {
                                     // save image and generate new path
@@ -73,6 +88,7 @@ namespace PhpBbImageMigration
                                     if (await _imageUploader.SaveAndUpload(match))
                                     {
                                         item.PostText = item.PostText.Replace(match, httpImgUrl);
+                                        item.PostText = item.PostText.Replace(EncodeDots(match), EncodeDots(httpImgUrl));
                                     }
                                     await Task.Delay(200);
                                 }
@@ -96,6 +112,11 @@ namespace PhpBbImageMigration
                 Console.WriteLine($"Error {ex}");
                 throw;
             }
+        }
+
+        private string EncodeDots(string url)
+        {
+            return url.Replace(".", "&#46;").Replace(":", "&#58;");
         }
     }
 }

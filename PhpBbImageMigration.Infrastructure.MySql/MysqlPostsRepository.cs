@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Web;
 
 namespace PhpBbImageMigration.Infrastructure.MySql
 {
@@ -58,13 +59,19 @@ namespace PhpBbImageMigration.Infrastructure.MySql
 
             var query = _context.Phpbb3Posts
                 .OrderBy(p => p.PostId)
+                .Where(p => p.TopicId == 35038)
                 .AsQueryable();
 
-            var patternQuery = QueryByPattern(query, patterns.FirstOrDefault());
+            //string pat = patterns.FirstOrDefault();
+            //var patternQuery = QueryByPattern(query, patterns.FirstOrDefault());
+            //patternQuery = patternQuery.Union(QueryByPattern(query, HttpUtility.HtmlEncode(patterns.FirstOrDefault())));
+            IQueryable<Phpbb3Post> patternQuery = _context.Phpbb3Posts.Where(p => false);
 
-            for (int i = 1; i < patterns.Length; i++)
+            for (int i = 0; i < patterns.Length; i++)
             {
-                patternQuery = patternQuery.Union(QueryByPattern(query, patterns.ElementAt(i)));
+                string patt = patterns.ElementAt(i);
+                patternQuery = patternQuery.Union(QueryByPattern(query, patt));
+                patternQuery = patternQuery.Union(QueryByPattern(query, patt.Replace(".", "&#46;")));
             }
 
             return await patternQuery

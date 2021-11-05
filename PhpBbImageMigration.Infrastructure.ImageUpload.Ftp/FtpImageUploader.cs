@@ -19,7 +19,7 @@ namespace PhpBbImageMigration.Infrastructure.ImageUpload.Ftp
         private readonly HttpClient _client;
         private readonly FtpConfiguration _config;
 
-        private readonly SemaphoreSlim _lock = new SemaphoreSlim(1, 1);
+        private readonly SemaphoreSlim _lock = new SemaphoreSlim(5, 5);
 
         public FtpImageUploader(FtpConfiguration ftpConfig, HttpClient client)
         {
@@ -84,6 +84,7 @@ namespace PhpBbImageMigration.Infrastructure.ImageUpload.Ftp
         {
             FtpWebRequest request = CreateFtpRequest(imageUrl, WebRequestMethods.Ftp.GetFileSize);
 
+            await _lock.WaitAsync();
             try
             {
                 using var response = await request.GetResponseAsync();
@@ -99,6 +100,10 @@ namespace PhpBbImageMigration.Infrastructure.ImageUpload.Ftp
                 }
 
                 throw;
+            }
+            finally
+            {
+                _lock.Release();
             }
         }
 
